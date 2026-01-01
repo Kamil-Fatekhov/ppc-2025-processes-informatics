@@ -1,7 +1,5 @@
 #pragma once
 
-#include <vector>
-
 #include "fatehov_k_reshetka_tor/common/include/common.hpp"
 #include "task/include/task.hpp"
 
