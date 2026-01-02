@@ -38,7 +38,7 @@ namespace {
 double ProcessValue(double val) {
   double heavy_val = val;
   for (int k = 0; k < 100; ++k) {
-    heavy_val = std::sin(heavy_val) * std::cos(heavy_val) + std::exp(std::complex<double>(0, heavy_val).real()) +
+    heavy_val = (std::sin(heavy_val) * std::cos(heavy_val)) + std::exp(std::complex<double>(0, heavy_val).real()) +
                 std::sqrt(std::abs(heavy_val) + 1.0);
     if (std::isinf(heavy_val)) {
       heavy_val = val;
@@ -55,9 +55,7 @@ double FindLocalMax(const std::vector<double> &matrix) {
   double local_max = -1e18;
   for (double val : matrix) {
     double processed_val = ProcessValue(val);
-    if (processed_val > local_max) {
-      local_max = processed_val;
-    }
+    local_max = std::max(processed_val, local_max);
   }
   return local_max;
 }
@@ -81,33 +79,35 @@ void GetGridCoordinates(int world_rank, int grid_cols, int &row, int &col) {
 }
 
 int GetTorNeighborRank(int world_rank, int grid_rows, int grid_cols, int delta_row, int delta_col) {
-  int row, col;
+  int row;
+  int col;
   GetGridCoordinates(world_rank, grid_cols, row, col);
 
   row = (row + delta_row + grid_rows) % grid_rows;
   col = (col + delta_col + grid_cols) % grid_cols;
 
-  return row * grid_cols + col;
+  return (row * grid_cols) + col;
 }
 
 void CalculateLocalBlockSize(int world_rank, int grid_rows, int grid_cols, size_t total_rows, size_t total_cols,
                              size_t &my_rows, size_t &my_cols, size_t &start_row, size_t &start_col) {
-  int row, col;
+  int row;
+  int col;
   GetGridCoordinates(world_rank, grid_cols, row, col);
 
   size_t rows_per_proc = total_rows / grid_rows;
   size_t rem_rows = total_rows % grid_rows;
 
-  size_t proc_row = static_cast<size_t>(row);
-  size_t proc_col = static_cast<size_t>(col);
+  auto proc_row = static_cast<size_t>(row);
+  auto proc_col = static_cast<size_t>(col);
 
-  start_row = proc_row * rows_per_proc + std::min<size_t>(proc_row, rem_rows);
+  start_row = (proc_row * rows_per_proc) + std::min<size_t>(proc_row, rem_rows);
   my_rows = rows_per_proc + (proc_row < rem_rows ? 1 : 0);
 
   size_t cols_per_proc = total_cols / grid_cols;
   size_t rem_cols = total_cols % grid_cols;
 
-  start_col = proc_col * cols_per_proc + std::min<size_t>(proc_col, rem_cols);
+  start_col = (proc_col * cols_per_proc) + std::min<size_t>(proc_col, rem_cols);
   my_cols = cols_per_proc + (proc_col < rem_cols ? 1 : 0);
 }
 
@@ -115,7 +115,10 @@ void DistributeMatrixData(int world_rank, int world_size, const std::vector<doub
                           size_t total_cols, int grid_rows, int grid_cols, std::vector<double> &local_matrix) {
   if (world_rank == 0) {
     for (int dest = 0; dest < world_size; ++dest) {
-      size_t dest_rows, dest_cols, start_row, start_col;
+      size_t dest_rows;
+      size_t dest_cols;
+      size_t start_row;
+      size_t start_col;
       CalculateLocalBlockSize(dest, grid_rows, grid_cols, total_rows, total_cols, dest_rows, dest_cols, start_row,
                               start_col);
 
@@ -124,7 +127,7 @@ void DistributeMatrixData(int world_rank, int world_size, const std::vector<doub
         for (size_t j = 0; j < dest_cols; ++j) {
           size_t global_i = start_row + i;
           size_t global_j = start_col + j;
-          buffer[i * dest_cols + j] = global_matrix[global_i * total_cols + global_j];
+          buffer[(i * dest_cols) + j] = global_matrix[(global_i * total_cols) + global_j];
         }
       }
 
@@ -136,7 +139,10 @@ void DistributeMatrixData(int world_rank, int world_size, const std::vector<doub
       }
     }
   } else {
-    size_t my_rows, my_cols, start_row, start_col;
+    size_t my_rows;
+    size_t my_cols;
+    size_t start_row;
+    size_t start_col;
     CalculateLocalBlockSize(world_rank, grid_rows, grid_cols, total_rows, total_cols, my_rows, my_cols, start_row,
                             start_col);
 
@@ -200,12 +206,13 @@ bool FatehovKReshetkaTorMPI::RunImpl() {
   MPI_Bcast(&total_rows, 1, MPI_UNSIGNED_LONG, 0, MPI_COMM_WORLD);
   MPI_Bcast(&total_cols, 1, MPI_UNSIGNED_LONG, 0, MPI_COMM_WORLD);
 
-  int grid_rows = 0, grid_cols = 0;
+  int grid_rows = 0;
+  int grid_cols = 0;
   CalculateGridDimensions(world_size, grid_rows, grid_cols);
 
   if (grid_rows * grid_cols != world_size) {
     if (world_rank == 0) {
-      std::cerr << "Error: Cannot create grid with " << world_size << " processes" << std::endl;
+      std::cerr << "Error: Cannot create grid with " << world_size << " processes" << '\n';
     }
     return false;
   }

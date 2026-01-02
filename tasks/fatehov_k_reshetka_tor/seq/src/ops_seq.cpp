@@ -1,8 +1,7 @@
 #include "fatehov_k_reshetka_tor/seq/include/ops_seq.hpp"
 
-#include <algorithm>
+#include <cmath>
 #include <complex>
-#include <cstddef>
 #include <vector>
 
 #include "fatehov_k_reshetka_tor/common/include/common.hpp"
@@ -36,7 +35,7 @@ bool FatehovKReshetkaTorSEQ::RunImpl() {
   for (double val : matrix) {
     double heavy_val = val;
     for (int k = 0; k < 100; ++k) {
-      heavy_val = std::sin(heavy_val) * std::cos(heavy_val) + std::exp(std::complex<double>(0, heavy_val).real()) +
+      heavy_val = (std::sin(heavy_val) * std::cos(heavy_val)) + std::exp(std::complex<double>(0, heavy_val).real()) +
                   std::sqrt(std::abs(heavy_val) + 1.0);
       if (std::isinf(heavy_val)) {
         heavy_val = val;

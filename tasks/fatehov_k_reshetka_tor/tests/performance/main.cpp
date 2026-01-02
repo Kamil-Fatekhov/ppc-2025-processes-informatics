@@ -1,6 +1,5 @@
 #include <gtest/gtest.h>
 
-#include <algorithm>
 #include <cmath>
 #include <complex>
 #include <cstddef>
@@ -43,15 +42,13 @@ class FatehovKRunPerfTestsReshetkaTor : public ppc::util::BaseRunPerfTests<InTyp
     for (size_t i = 0; i < total; ++i) {
       double heavy_val = matrix[i];
       for (int k = 0; k < 100; ++k) {
-        heavy_val = std::sin(heavy_val) * std::cos(heavy_val) + std::exp(std::complex<double>(0, heavy_val).real()) +
+        heavy_val = (std::sin(heavy_val) * std::cos(heavy_val)) + std::exp(std::complex<double>(0, heavy_val).real()) +
                     std::sqrt(std::abs(heavy_val) + 1.0);
         if (std::isinf(heavy_val)) {
           heavy_val = matrix[i];
         }
       }
-      if (heavy_val > computed_max) {
-        computed_max = heavy_val;
-      }
+      computed_max = std::max(heavy_val, computed_max);
     }
 
     expected_result_ = computed_max;

@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <complex>
 #include <cstddef>
 #include <string>
@@ -48,20 +49,18 @@ class FatehovKRunFuncTestsReshetkaTor : public ppc::util::BaseRunFuncTests<InTyp
   }
 
  private:
-  double ComputeExpectedValue(const std::vector<double> &matrix) {
+  static double ComputeExpectedValue(const std::vector<double> &matrix) {
     double global_max = -1e18;
     for (double val : matrix) {
       double heavy_val = val;
       for (int k = 0; k < 100; ++k) {
-        heavy_val = std::sin(heavy_val) * std::cos(heavy_val) + std::exp(std::complex<double>(0, heavy_val).real()) +
+        heavy_val = (std::sin(heavy_val) * std::cos(heavy_val)) + std::exp(std::complex<double>(0, heavy_val).real()) +
                     std::sqrt(std::abs(heavy_val) + 1.0);
         if (std::isinf(heavy_val)) {
           heavy_val = val;
         }
       }
-      if (heavy_val > global_max) {
-        global_max = heavy_val;
-      }
+      global_max = std::max(heavy_val, global_max);
     }
     return global_max;
   }
