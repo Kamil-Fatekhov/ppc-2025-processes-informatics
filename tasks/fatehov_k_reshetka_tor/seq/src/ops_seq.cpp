@@ -1,9 +1,10 @@
 #include "fatehov_k_reshetka_tor/seq/include/ops_seq.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <complex>
 #include <vector>
-#include <algorithm>
+
 #include "fatehov_k_reshetka_tor/common/include/common.hpp"
 
 namespace fatehov_k_reshetka_tor {
