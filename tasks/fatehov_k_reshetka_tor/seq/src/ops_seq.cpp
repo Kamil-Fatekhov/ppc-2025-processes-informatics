@@ -42,9 +42,7 @@ bool FatehovKReshetkaTorSEQ::RunImpl() {
       }
     }
 
-    if (heavy_val > global_max) {
-      global_max = heavy_val;
-    }
+    global_max = std::max(heavy_val, global_max);
   }
   GetOutput() = global_max;
   return true;

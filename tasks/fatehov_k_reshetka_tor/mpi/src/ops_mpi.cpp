@@ -79,8 +79,8 @@ void GetGridCoordinates(int world_rank, int grid_cols, int &row, int &col) {
 }
 
 int GetTorNeighborRank(int world_rank, int grid_rows, int grid_cols, int delta_row, int delta_col) {
-  int row;
-  int col;
+  int row = 0;
+  int col = 0;
   GetGridCoordinates(world_rank, grid_cols, row, col);
 
   row = (row + delta_row + grid_rows) % grid_rows;
@@ -91,8 +91,8 @@ int GetTorNeighborRank(int world_rank, int grid_rows, int grid_cols, int delta_r
 
 void CalculateLocalBlockSize(int world_rank, int grid_rows, int grid_cols, size_t total_rows, size_t total_cols,
                              size_t &my_rows, size_t &my_cols, size_t &start_row, size_t &start_col) {
-  int row;
-  int col;
+  int row = 0;
+  int col = 0;
   GetGridCoordinates(world_rank, grid_cols, row, col);
 
   size_t rows_per_proc = total_rows / grid_rows;
@@ -115,10 +115,10 @@ void DistributeMatrixData(int world_rank, int world_size, const std::vector<doub
                           size_t total_cols, int grid_rows, int grid_cols, std::vector<double> &local_matrix) {
   if (world_rank == 0) {
     for (int dest = 0; dest < world_size; ++dest) {
-      size_t dest_rows;
-      size_t dest_cols;
-      size_t start_row;
-      size_t start_col;
+      size_t dest_rows = 0;
+      size_t dest_cols = 0;
+      size_t start_row = 0;
+      size_t start_col = 0;
       CalculateLocalBlockSize(dest, grid_rows, grid_cols, total_rows, total_cols, dest_rows, dest_cols, start_row,
                               start_col);
 
@@ -139,10 +139,10 @@ void DistributeMatrixData(int world_rank, int world_size, const std::vector<doub
       }
     }
   } else {
-    size_t my_rows;
-    size_t my_cols;
-    size_t start_row;
-    size_t start_col;
+    size_t my_rows = 0;
+    size_t my_cols = 0;
+    size_t start_row = 0;
+    size_t start_col = 0;
     CalculateLocalBlockSize(world_rank, grid_rows, grid_cols, total_rows, total_cols, my_rows, my_cols, start_row,
                             start_col);
 
