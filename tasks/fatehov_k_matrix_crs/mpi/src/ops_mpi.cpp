@@ -129,7 +129,7 @@ void ComputeLocalResult(const std::vector<double> &val_a_loc, const std::vector<
   }
 
   for (int i = 0; i < local_rows; ++i) {
-    size_t row_idx = static_cast<size_t>(start_row + i);
+    size_t row_idx = static_cast<size_t>(start_row) + static_cast<size_t>(i);
     size_t row_start = ptr_a[row_idx] - ptr_a[start_row];
     size_t row_end = ptr_a[row_idx + 1] - ptr_a[start_row];
 
