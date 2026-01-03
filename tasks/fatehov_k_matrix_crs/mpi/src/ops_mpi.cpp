@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <stdexcept>
+#include <utility>
 #include <vector>
 
 #include "fatehov_k_matrix_crs/common/include/common.hpp"
@@ -12,6 +13,18 @@
 namespace fatehov_k_matrix_crs {
 
 namespace {
+
+// Вспомогательная функция для вычисления границ строк для конкретного процесса
+std::pair<int, int> GetProcessRowRange(int target_rank, int size, int rows_total) {
+  int rows_per_proc = rows_total / size;
+  int rem = rows_total % size;
+  int start = 0;
+  for (int j = 0; j < target_rank; ++j) {
+    start += (rows_per_proc + (j < rem ? 1 : 0));
+  }
+  int end = start + (rows_per_proc + (target_rank < rem ? 1 : 0));
+  return {start, std::min(end, rows_total)};
+}
 
 void BroadcastMatrixSizes(size_t &rows, size_t &cols, int rank, const InType &input) {
   if (rank == 0) {
@@ -55,24 +68,32 @@ void BroadcastMatrixAStructure(std::vector<size_t> &ptr_a, size_t rows, int rank
 }
 
 void DistributeLocalWork(int &local_rows, int &start_row, int &end_row, size_t rows, int size, int rank) {
-  int rows_total = static_cast<int>(rows);
-  int rows_per_proc = rows_total / size;
-  int rem = rows_total % size;
+  auto range = GetProcessRowRange(rank, size, static_cast<int>(rows));
+  start_row = range.first;
+  end_row = range.second;
+  local_rows = end_row - start_row;
+}
 
-  local_rows = rows_per_proc + (rank < rem ? 1 : 0);
+// Логика отправки данных от корня (rank 0) другим процессам
+void SendMatrixAParts(int size, const std::vector<size_t> &ptr_a, const InType &input) {
+  const auto &values_a = std::get<2>(input);
+  const auto &cols_a = std::get<4>(input);
+  int rows_total = static_cast<int>(ptr_a.size() - 1);
 
-  start_row = 0;
-  for (int i = 0; i < rank; ++i) {
-    start_row += (rows_per_proc + (i < rem ? 1 : 0));
+  for (int i = 1; i < size; ++i) {
+    auto range = GetProcessRowRange(i, size, rows_total);
+    size_t sz = ptr_a[range.second] - ptr_a[range.first];
+    if (sz > 0) {
+      MPI_Send(&values_a[ptr_a[range.first]], static_cast<int>(sz), MPI_DOUBLE, i, 0, MPI_COMM_WORLD);
+      MPI_Send(static_cast<const void *>(&cols_a[ptr_a[range.first]]), static_cast<int>(sz), MPI_UNSIGNED_LONG_LONG, i,
+               1, MPI_COMM_WORLD);
+    }
   }
-
-  end_row = std::min(start_row + local_rows, rows_total);
-  start_row = std::min(start_row, end_row);
 }
 
 void ScatterMatrixA(std::vector<double> &val_a_loc, std::vector<size_t> &col_a_loc, const std::vector<size_t> &ptr_a,
                     int start_row, int end_row, int rank, int size, const InType &input) {
-  if (start_row < 0 || static_cast<size_t>(end_row) > ptr_a.size() - 1) {
+  if (start_row < 0 || std::cmp_greater(end_row, ptr_a.size() - 1)) {
     val_a_loc.clear();
     col_a_loc.clear();
     return;
@@ -83,28 +104,14 @@ void ScatterMatrixA(std::vector<double> &val_a_loc, std::vector<size_t> &col_a_l
   col_a_loc.resize(local_nnz);
 
   if (rank == 0) {
-    const auto &values_a = std::get<2>(input);
-    const auto &cols_a = std::get<4>(input);
-    int rows_total = static_cast<int>(ptr_a.size() - 1);
-
-    for (int i = 1; i < size; ++i) {
-      int i_start = 0;
-      for (int j = 0; j < i; ++j) {
-        i_start += (rows_total / size + (j < (rows_total % size) ? 1 : 0));
-      }
-      int i_end = std::min(i_start + (rows_total / size + (i < (rows_total % size) ? 1 : 0)), rows_total);
-
-      size_t sz = ptr_a[i_end] - ptr_a[i_start];
-      if (sz > 0) {
-        MPI_Send(&values_a[ptr_a[i_start]], static_cast<int>(sz), MPI_DOUBLE, i, 0, MPI_COMM_WORLD);
-        MPI_Send(static_cast<const void *>(&cols_a[ptr_a[i_start]]), static_cast<int>(sz), MPI_UNSIGNED_LONG_LONG, i, 1,
-                 MPI_COMM_WORLD);
-      }
-    }
-
+    SendMatrixAParts(size, ptr_a, input);
     if (local_nnz > 0) {
-      std::copy(values_a.begin() + ptr_a[start_row], values_a.begin() + ptr_a[end_row], val_a_loc.begin());
-      std::copy(cols_a.begin() + ptr_a[start_row], cols_a.begin() + ptr_a[end_row], col_a_loc.begin());
+      const auto &v_a = std::get<2>(input);
+      const auto &c_a = std::get<4>(input);
+      std::copy(v_a.begin() + static_cast<ptrdiff_t>(ptr_a[start_row]),
+                v_a.begin() + static_cast<ptrdiff_t>(ptr_a[end_row]), val_a_loc.begin());
+      std::copy(c_a.begin() + static_cast<ptrdiff_t>(ptr_a[start_row]),
+                c_a.begin() + static_cast<ptrdiff_t>(ptr_a[end_row]), col_a_loc.begin());
     }
   } else if (local_nnz > 0) {
     MPI_Recv(val_a_loc.data(), static_cast<int>(local_nnz), MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
@@ -122,13 +129,13 @@ void ComputeLocalResult(const std::vector<double> &val_a_loc, const std::vector<
   }
 
   for (int i = 0; i < local_rows; ++i) {
-    size_t row_start = ptr_a[start_row + i] - ptr_a[start_row];
-    size_t row_end = ptr_a[start_row + i + 1] - ptr_a[start_row];
+    size_t row_idx = static_cast<size_t>(start_row + i);
+    size_t row_start = ptr_a[row_idx] - ptr_a[start_row];
+    size_t row_end = ptr_a[row_idx + 1] - ptr_a[start_row];
 
     for (size_t k = row_start; k < row_end; ++k) {
       double a_val = val_a_loc[k];
       size_t a_col = col_a_loc[k];
-
       if (a_col >= ptr_b.size() - 1) {
         continue;
       }
@@ -153,7 +160,7 @@ void GatherResults(std::vector<double> &full_res, const std::vector<double> &res
   MPI_Gather(&send_cnt, 1, MPI_INT, counts.data(), 1, MPI_INT, 0, MPI_COMM_WORLD);
 
   if (rank == 0) {
-    if (rows * cols > 10000000) {
+    if (std::cmp_greater(rows * cols, 10000000)) {
       throw std::runtime_error("Matrix too large for MPI broadcast");
     }
     full_res.resize(rows * cols, 0.0);
@@ -225,7 +232,7 @@ bool FatehovKMatrixCRSMPI::RunImpl() {
   int end_row = 0;
   DistributeLocalWork(local_rows, start_row, end_row, rows, size, rank);
 
-  if (start_row < 0 || static_cast<size_t>(end_row) > rows || start_row >= end_row) {
+  if (start_row < 0 || std::cmp_greater(end_row, rows) || start_row >= end_row) {
     local_rows = 0;
     start_row = 0;
     end_row = 0;
