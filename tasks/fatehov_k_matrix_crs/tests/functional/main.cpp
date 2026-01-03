@@ -1,5 +1,8 @@
 #include <gtest/gtest.h>
 
+#include <algorithm>
+#include <array>
+#include <cmath>
 #include <cstddef>
 #include <string>
 #include <tuple>
@@ -60,7 +63,7 @@ class FatehovKRunFuncTestsMatrixCRS : public ppc::util::BaseRunFuncTests<InType,
  private:
   InType input_data_ = std::make_tuple(0, 0, std::vector<double>{}, std::vector<double>{}, std::vector<size_t>{},
                                        std::vector<size_t>{}, std::vector<size_t>{}, std::vector<size_t>{});
-  OutType expected_result_{};
+  OutType expected_result_;
 };
 
 namespace {

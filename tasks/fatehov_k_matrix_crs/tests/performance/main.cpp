@@ -16,7 +16,7 @@ namespace fatehov_k_matrix_crs {
 class FatehovKRunPerfTestsMatrixCRS : public ppc::util::BaseRunPerfTests<InType, OutType> {
   InType input_data_ = std::make_tuple(0, 0, std::vector<double>{}, std::vector<double>{}, std::vector<size_t>{},
                                        std::vector<size_t>{}, std::vector<size_t>{}, std::vector<size_t>{});
-  OutType expected_result_{};
+  OutType expected_result_;
 
   void SetUp() override {
     const size_t rows = 5000;

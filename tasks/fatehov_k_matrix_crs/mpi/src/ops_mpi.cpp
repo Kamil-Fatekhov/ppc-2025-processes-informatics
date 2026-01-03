@@ -105,7 +105,7 @@ void ComputeLocalResult(const std::vector<double> &val_a_loc, const std::vector<
       size_t a_col = col_a_loc[k];
 
       for (size_t j = ptr_b[a_col]; j < ptr_b[a_col + 1]; ++j) {
-        size_t index = static_cast<size_t>(i) * cols + col_b[j];
+        size_t index = (static_cast<size_t>(i) * cols) + col_b[j];
         res_loc[index] += a_val * val_b[j];
       }
     }
