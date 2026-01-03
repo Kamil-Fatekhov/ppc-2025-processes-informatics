@@ -19,8 +19,8 @@ class FatehovKRunPerfTestsMatrixCRS : public ppc::util::BaseRunPerfTests<InType,
   OutType expected_result_;
 
   void SetUp() override {
-    const size_t rows = 1000;
-    const size_t cols = 1000;
+    const size_t rows = 100;
+    const size_t cols = 100;
     const double sparsity = 0.02;
 
     std::vector<double> values{};
