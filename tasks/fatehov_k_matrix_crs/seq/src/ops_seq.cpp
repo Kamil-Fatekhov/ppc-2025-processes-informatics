@@ -1,7 +1,7 @@
 #include "fatehov_k_matrix_crs/seq/include/ops_seq.hpp"
 
-#include <algorithm>
 #include <cmath>
+#include <cstddef>
 #include <vector>
 
 #include "fatehov_k_matrix_crs/common/include/common.hpp"
@@ -49,14 +49,15 @@ bool FatehovKMatrixCRSSEQ::RunImpl() {
 
   for (size_t i = 0; i < rows; ++i) {
     for (size_t k = row_ptr[i]; k < row_ptr[i + 1]; ++k) {
-      size_t colA = col_indices[k];
-      double valA = values[k];
+      size_t col_a = col_indices[k];
+      double val_a = values[k];
 
-      for (size_t j = row_ptr2[colA]; j < row_ptr2[colA + 1]; ++j) {
-        size_t colB = col_indices2[j];
-        double valB = values2[j];
+      for (size_t j = row_ptr2[col_a]; j < row_ptr2[col_a + 1]; ++j) {
+        size_t col_b = col_indices2[j];
+        double val_b = values2[j];
 
-        result[i * cols + colB] += valA * valB;
+        size_t index = (i * cols) + col_b;
+        result[index] += val_a * val_b;
       }
     }
   }

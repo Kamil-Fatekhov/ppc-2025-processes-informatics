@@ -1,8 +1,5 @@
 #include <gtest/gtest.h>
 
-#include <algorithm>
-#include <array>
-#include <cmath>
 #include <cstddef>
 #include <string>
 #include <tuple>
@@ -45,14 +42,11 @@ class FatehovKRunFuncTestsMatrixCRS : public ppc::util::BaseRunFuncTests<InType,
 
   bool CheckTestOutputData(OutType &output_data) final {
     if (output_data.size() != expected_result_.size()) {
-      std::cout << "Size mismatch: expected " << expected_result_.size() << ", got " << output_data.size() << std::endl;
       return false;
     }
 
     for (size_t i = 0; i < output_data.size(); ++i) {
       if (std::fabs(expected_result_[i] - output_data[i]) > 1e-10) {
-        std::cout << "Mismatch at index " << i << ": expected " << expected_result_[i] << ", got " << output_data[i]
-                  << std::endl;
         return false;
       }
     }
@@ -66,7 +60,7 @@ class FatehovKRunFuncTestsMatrixCRS : public ppc::util::BaseRunFuncTests<InType,
  private:
   InType input_data_ = std::make_tuple(0, 0, std::vector<double>{}, std::vector<double>{}, std::vector<size_t>{},
                                        std::vector<size_t>{}, std::vector<size_t>{}, std::vector<size_t>{});
-  OutType expected_result_ = std::vector<double>{};
+  OutType expected_result_{};
 };
 
 namespace {

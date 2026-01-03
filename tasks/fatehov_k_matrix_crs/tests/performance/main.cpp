@@ -1,10 +1,8 @@
 #include <gtest/gtest.h>
 
-#include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
-#include <limits>
 #include <tuple>
 #include <vector>
 
@@ -18,16 +16,19 @@ namespace fatehov_k_matrix_crs {
 class FatehovKRunPerfTestsMatrixCRS : public ppc::util::BaseRunPerfTests<InType, OutType> {
   InType input_data_ = std::make_tuple(0, 0, std::vector<double>{}, std::vector<double>{}, std::vector<size_t>{},
                                        std::vector<size_t>{}, std::vector<size_t>{}, std::vector<size_t>{});
-  OutType expected_result_ = std::vector<double>{};
+  OutType expected_result_{};
 
   void SetUp() override {
     const size_t rows = 5000;
     const size_t cols = 5000;
     const double sparsity = 0.02;
 
-    std::vector<double> values, values2;
-    std::vector<size_t> col_indices, col_indices2;
-    std::vector<size_t> row_ptr(rows + 1, 0), row_ptr2(rows + 1, 0);
+    std::vector<double> values{};
+    std::vector<double> values2{};
+    std::vector<size_t> col_indices{};
+    std::vector<size_t> col_indices2{};
+    std::vector<size_t> row_ptr(rows + 1, 0);
+    std::vector<size_t> row_ptr2(rows + 1, 0);
 
     uint64_t state = 42;
     const uint64_t a = 1664525ULL;
@@ -67,14 +68,15 @@ class FatehovKRunPerfTestsMatrixCRS : public ppc::util::BaseRunPerfTests<InType,
 
     for (size_t i = 0; i < rows; ++i) {
       for (size_t k = row_ptr[i]; k < row_ptr[i + 1]; ++k) {
-        size_t colA = col_indices[k];
-        double valA = values[k];
+        size_t col_a = col_indices[k];
+        double val_a = values[k];
 
-        for (size_t j = row_ptr2[colA]; j < row_ptr2[colA + 1]; ++j) {
-          size_t colB = col_indices2[j];
-          double valB = values2[j];
+        for (size_t j = row_ptr2[col_a]; j < row_ptr2[col_a + 1]; ++j) {
+          size_t col_b = col_indices2[j];
+          double val_b = values2[j];
 
-          computed_result[i * cols + colB] += valA * valB;
+          size_t index = (i * cols) + col_b;
+          computed_result[index] += val_a * val_b;
         }
       }
     }
