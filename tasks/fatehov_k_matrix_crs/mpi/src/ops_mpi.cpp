@@ -13,7 +13,7 @@ namespace fatehov_k_matrix_crs {
 
 namespace {
 
-void BroadcastMatrixSizes(size_t& rows, size_t& cols, int rank, const InType& input) {
+void BroadcastMatrixSizes(size_t &rows, size_t &cols, int rank, const InType &input) {
   if (rank == 0) {
     rows = std::get<0>(input);
     cols = std::get<1>(input);
@@ -22,8 +22,8 @@ void BroadcastMatrixSizes(size_t& rows, size_t& cols, int rank, const InType& in
   MPI_Bcast(&cols, 1, MPI_UNSIGNED_LONG, 0, MPI_COMM_WORLD);
 }
 
-void BroadcastMatrixB(std::vector<double>& val_b, std::vector<size_t>& col_b, std::vector<size_t>& ptr_b, size_t& nnz_b,
-                      size_t rows, int rank, const InType& input) {
+void BroadcastMatrixB(std::vector<double> &val_b, std::vector<size_t> &col_b, std::vector<size_t> &ptr_b, size_t &nnz_b,
+                      size_t rows, int rank, const InType &input) {
   if (rank == 0) {
     val_b = std::get<3>(input);
     col_b = std::get<5>(input);
@@ -43,7 +43,7 @@ void BroadcastMatrixB(std::vector<double>& val_b, std::vector<size_t>& col_b, st
   MPI_Bcast(ptr_b.data(), static_cast<int>(rows) + 1, MPI_UNSIGNED_LONG, 0, MPI_COMM_WORLD);
 }
 
-void BroadcastMatrixAStructure(std::vector<size_t>& ptr_a, size_t rows, int rank, const InType& input) {
+void BroadcastMatrixAStructure(std::vector<size_t> &ptr_a, size_t rows, int rank, const InType &input) {
   ptr_a.resize(rows + 1);
   if (rank == 0) {
     ptr_a = std::get<6>(input);
@@ -51,7 +51,7 @@ void BroadcastMatrixAStructure(std::vector<size_t>& ptr_a, size_t rows, int rank
   MPI_Bcast(ptr_a.data(), static_cast<int>(rows) + 1, MPI_UNSIGNED_LONG, 0, MPI_COMM_WORLD);
 }
 
-void DistributeLocalWork(int& local_rows, int& start_row, int& end_row, size_t rows, int size, int rank) {
+void DistributeLocalWork(int &local_rows, int &start_row, int &end_row, size_t rows, int size, int rank) {
   int rows_per_proc = static_cast<int>(rows) / size;
   int rem = static_cast<int>(rows) % size;
   local_rows = rows_per_proc + (rank < rem ? 1 : 0);
@@ -59,15 +59,15 @@ void DistributeLocalWork(int& local_rows, int& start_row, int& end_row, size_t r
   end_row = start_row + local_rows;
 }
 
-void ScatterMatrixA(std::vector<double>& val_a_loc, std::vector<size_t>& col_a_loc, const std::vector<size_t>& ptr_a,
-                    int start_row, int end_row, int rank, int size, const InType& input) {
+void ScatterMatrixA(std::vector<double> &val_a_loc, std::vector<size_t> &col_a_loc, const std::vector<size_t> &ptr_a,
+                    int start_row, int end_row, int rank, int size, const InType &input) {
   size_t local_nnz = ptr_a[end_row] - ptr_a[start_row];
   val_a_loc.resize(local_nnz);
   col_a_loc.resize(local_nnz);
 
   if (rank == 0) {
-    const auto& values_a = std::get<2>(input);
-    const auto& cols_a = std::get<4>(input);
+    const auto &values_a = std::get<2>(input);
+    const auto &cols_a = std::get<4>(input);
 
     for (int i = 1; i < size; ++i) {
       int i_rows_per_proc = static_cast<int>(ptr_a.size() - 1) / size;
@@ -92,10 +92,10 @@ void ScatterMatrixA(std::vector<double>& val_a_loc, std::vector<size_t>& col_a_l
   }
 }
 
-void ComputeLocalResult(const std::vector<double>& val_a_loc, const std::vector<size_t>& col_a_loc,
-                        const std::vector<double>& val_b, const std::vector<size_t>& col_b,
-                        const std::vector<size_t>& ptr_b, std::vector<double>& res_loc, int local_rows, size_t cols,
-                        const std::vector<size_t>& ptr_a, int start_row) {
+void ComputeLocalResult(const std::vector<double> &val_a_loc, const std::vector<size_t> &col_a_loc,
+                        const std::vector<double> &val_b, const std::vector<size_t> &col_b,
+                        const std::vector<size_t> &ptr_b, std::vector<double> &res_loc, int local_rows, size_t cols,
+                        const std::vector<size_t> &ptr_a, int start_row) {
   for (int i = 0; i < local_rows; ++i) {
     size_t row_start_offset = ptr_a[start_row + i] - ptr_a[start_row];
     size_t row_end_offset = ptr_a[start_row + i + 1] - ptr_a[start_row];
@@ -112,8 +112,8 @@ void ComputeLocalResult(const std::vector<double>& val_a_loc, const std::vector<
   }
 }
 
-void GatherResults(std::vector<double>& full_res, const std::vector<double>& res_loc, int local_rows, size_t rows,
-                   size_t cols, int rank, int size, OutType& output) {
+void GatherResults(std::vector<double> &full_res, const std::vector<double> &res_loc, int local_rows, size_t rows,
+                   size_t cols, int rank, int size, OutType &output) {
   std::vector<int> counts(size);
   std::vector<int> displs(size);
   int send_cnt = local_rows * static_cast<int>(cols);
@@ -141,7 +141,7 @@ void GatherResults(std::vector<double>& full_res, const std::vector<double>& res
 
 }  // namespace
 
-FatehovKMatrixCRSMPI::FatehovKMatrixCRSMPI(const InType& in) {
+FatehovKMatrixCRSMPI::FatehovKMatrixCRSMPI(const InType &in) {
   SetTypeOfTask(GetStaticTypeOfTask());
   GetInput() = in;
 }
@@ -151,7 +151,7 @@ bool FatehovKMatrixCRSMPI::ValidationImpl() {
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   int is_valid = 0;
   if (rank == 0) {
-    auto& data = GetInput();
+    auto &data = GetInput();
     size_t rows = std::get<0>(data);
     size_t cols = std::get<1>(data);
     if (rows > 0 && cols > 0 && rows <= kMaxRows && cols <= kMaxCols) {
@@ -172,7 +172,7 @@ bool FatehovKMatrixCRSMPI::RunImpl() {
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-  const auto& input = GetInput();
+  const auto &input = GetInput();
 
   size_t rows = 0;
   size_t cols = 0;
@@ -200,7 +200,7 @@ bool FatehovKMatrixCRSMPI::RunImpl() {
   ComputeLocalResult(val_a_loc, col_a_loc, val_b, col_b, ptr_b, res_loc, local_rows, cols, ptr_a, start_row);
 
   std::vector<double> full_res{};
-  auto& output = GetOutput();
+  auto &output = GetOutput();
   GatherResults(full_res, res_loc, local_rows, rows, cols, rank, size, output);
 
   return true;
