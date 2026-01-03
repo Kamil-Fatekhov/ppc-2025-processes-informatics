@@ -51,16 +51,42 @@ void BroadcastMatrixAStructure(std::vector<size_t> &ptr_a, size_t rows, int rank
   MPI_Bcast(ptr_a.data(), static_cast<int>(rows) + 1, MPI_UNSIGNED_LONG, 0, MPI_COMM_WORLD);
 }
 
+// ИСПРАВЛЕННАЯ функция!
 void DistributeLocalWork(int &local_rows, int &start_row, int &end_row, size_t rows, int size, int rank) {
   int rows_per_proc = static_cast<int>(rows) / size;
   int rem = static_cast<int>(rows) % size;
+
+  // Количество строк для текущего процесса
   local_rows = rows_per_proc + (rank < rem ? 1 : 0);
-  start_row = (rank * rows_per_proc) + std::min(rank, rem);
+
+  // Начальная строка - сумма строк всех предыдущих процессов
+  start_row = 0;
+  for (int i = 0; i < rank; ++i) {
+    int i_rows = rows_per_proc + (i < rem ? 1 : 0);
+    start_row += i_rows;
+  }
+
+  // Конечная строка (не включая)
   end_row = start_row + local_rows;
+
+  // Проверка границ
+  if (end_row > static_cast<int>(rows)) {
+    end_row = static_cast<int>(rows);
+  }
+  if (start_row > end_row) {
+    start_row = end_row;
+  }
 }
 
 void ScatterMatrixA(std::vector<double> &val_a_loc, std::vector<size_t> &col_a_loc, const std::vector<size_t> &ptr_a,
                     int start_row, int end_row, int rank, int size, const InType &input) {
+  // Проверка границ
+  if (start_row < 0 || end_row > static_cast<int>(ptr_a.size() - 1)) {
+    val_a_loc.clear();
+    col_a_loc.clear();
+    return;
+  }
+
   size_t local_nnz = ptr_a[end_row] - ptr_a[start_row];
   val_a_loc.resize(local_nnz);
   col_a_loc.resize(local_nnz);
@@ -70,11 +96,21 @@ void ScatterMatrixA(std::vector<double> &val_a_loc, std::vector<size_t> &col_a_l
     const auto &cols_a = std::get<4>(input);
 
     for (int i = 1; i < size; ++i) {
+      // Пересчитываем для каждого процесса
       int i_rows_per_proc = static_cast<int>(ptr_a.size() - 1) / size;
       int i_rem = static_cast<int>(ptr_a.size() - 1) % size;
       int i_local_rows = i_rows_per_proc + (i < i_rem ? 1 : 0);
-      int i_start_row = (i * i_rows_per_proc) + std::min(i, i_rem);
+      int i_start_row = 0;
+      for (int j = 0; j < i; ++j) {
+        int j_rows = i_rows_per_proc + (j < i_rem ? 1 : 0);
+        i_start_row += j_rows;
+      }
       int i_end_row = i_start_row + i_local_rows;
+
+      if (i_end_row > static_cast<int>(ptr_a.size() - 1)) {
+        i_end_row = static_cast<int>(ptr_a.size() - 1);
+      }
+
       size_t sz = ptr_a[i_end_row] - ptr_a[i_start_row];
       if (sz > 0) {
         MPI_Send(&values_a[ptr_a[i_start_row]], static_cast<int>(sz), MPI_DOUBLE, i, 0, MPI_COMM_WORLD);
@@ -82,10 +118,12 @@ void ScatterMatrixA(std::vector<double> &val_a_loc, std::vector<size_t> &col_a_l
       }
     }
 
-    std::copy(values_a.begin() + static_cast<ptrdiff_t>(ptr_a[start_row]),
-              values_a.begin() + static_cast<ptrdiff_t>(ptr_a[end_row]), val_a_loc.begin());
-    std::copy(cols_a.begin() + static_cast<ptrdiff_t>(ptr_a[start_row]),
-              cols_a.begin() + static_cast<ptrdiff_t>(ptr_a[end_row]), col_a_loc.begin());
+    if (local_nnz > 0) {
+      std::copy(values_a.begin() + static_cast<ptrdiff_t>(ptr_a[start_row]),
+                values_a.begin() + static_cast<ptrdiff_t>(ptr_a[end_row]), val_a_loc.begin());
+      std::copy(cols_a.begin() + static_cast<ptrdiff_t>(ptr_a[start_row]),
+                cols_a.begin() + static_cast<ptrdiff_t>(ptr_a[end_row]), col_a_loc.begin());
+    }
   } else if (local_nnz > 0) {
     MPI_Recv(val_a_loc.data(), static_cast<int>(local_nnz), MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
     MPI_Recv(col_a_loc.data(), static_cast<int>(local_nnz), MPI_UNSIGNED_LONG, 0, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
@@ -96,6 +134,11 @@ void ComputeLocalResult(const std::vector<double> &val_a_loc, const std::vector<
                         const std::vector<double> &val_b, const std::vector<size_t> &col_b,
                         const std::vector<size_t> &ptr_b, std::vector<double> &res_loc, int local_rows, size_t cols,
                         const std::vector<size_t> &ptr_a, int start_row) {
+  // Проверка границ
+  if (local_rows <= 0 || cols == 0) {
+    return;
+  }
+
   for (int i = 0; i < local_rows; ++i) {
     size_t row_start_offset = ptr_a[start_row + i] - ptr_a[start_row];
     size_t row_end_offset = ptr_a[start_row + i + 1] - ptr_a[start_row];
@@ -104,9 +147,25 @@ void ComputeLocalResult(const std::vector<double> &val_a_loc, const std::vector<
       double a_val = val_a_loc[k];
       size_t a_col = col_a_loc[k];
 
+      // Проверка границ для матрицы B
+      if (a_col >= ptr_b.size() - 1) {
+        continue;  // Индекс вне границ
+      }
+
       for (size_t j = ptr_b[a_col]; j < ptr_b[a_col + 1]; ++j) {
-        size_t index = (static_cast<size_t>(i) * cols) + col_b[j];
-        res_loc[index] += a_val * val_b[j];
+        if (j >= col_b.size()) {
+          continue;  // Индекс вне границ
+        }
+
+        size_t col_b_idx = col_b[j];
+        if (col_b_idx >= cols) {
+          continue;  // Индекс вне границ
+        }
+
+        size_t index = static_cast<size_t>(i) * cols + col_b_idx;
+        if (index < res_loc.size()) {
+          res_loc[index] += a_val * val_b[j];
+        }
       }
     }
   }
@@ -117,25 +176,35 @@ void GatherResults(std::vector<double> &full_res, const std::vector<double> &res
   std::vector<int> counts(size);
   std::vector<int> displs(size);
   int send_cnt = local_rows * static_cast<int>(cols);
+
+  // Проверка на переполнение
+  if (send_cnt < 0) {
+    send_cnt = 0;
+  }
+
   MPI_Gather(&send_cnt, 1, MPI_INT, counts.data(), 1, MPI_INT, 0, MPI_COMM_WORLD);
 
   if (rank == 0) {
-    full_res.resize(rows * cols);
+    size_t total_elements = rows * cols;
+    // Проверка на разумный размер
+    if (total_elements > 10000000) {  // 10 млн элементов макс
+      throw std::runtime_error("Matrix too large for MPI broadcast");
+    }
+    full_res.resize(total_elements, 0.0);
+
     displs[0] = 0;
     for (int i = 1; i < size; ++i) {
       displs[i] = displs[i - 1] + counts[i - 1];
     }
   }
 
-  MPI_Gatherv(res_loc.data(), send_cnt, MPI_DOUBLE, full_res.data(), counts.data(), displs.data(), MPI_DOUBLE, 0,
-              MPI_COMM_WORLD);
+  // Все процессы должны иметь output правильного размера для Bcast
+  output.resize(rows * cols);
 
-  if (rank == 0) {
-    output = std::move(full_res);
-  } else {
-    output.resize(rows * cols);
-  }
+  MPI_Gatherv(res_loc.data(), send_cnt, MPI_DOUBLE, rank == 0 ? output.data() : nullptr, counts.data(), displs.data(),
+              MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
+  // Рассылаем результат всем процессам
   MPI_Bcast(output.data(), static_cast<int>(rows * cols), MPI_DOUBLE, 0, MPI_COMM_WORLD);
 }
 
@@ -178,6 +247,11 @@ bool FatehovKMatrixCRSMPI::RunImpl() {
   size_t cols = 0;
   BroadcastMatrixSizes(rows, cols, rank, input);
 
+  // Проверка на допустимые размеры
+  if (rows == 0 || cols == 0 || rows > 10000 || cols > 10000) {
+    return false;
+  }
+
   std::vector<double> val_b{};
   std::vector<size_t> col_b{};
   std::vector<size_t> ptr_b{};
@@ -191,6 +265,13 @@ bool FatehovKMatrixCRSMPI::RunImpl() {
   int start_row = 0;
   int end_row = 0;
   DistributeLocalWork(local_rows, start_row, end_row, rows, size, rank);
+
+  // Дополнительная проверка границ
+  if (start_row < 0 || end_row > static_cast<int>(rows) || start_row >= end_row) {
+    local_rows = 0;
+    start_row = 0;
+    end_row = 0;
+  }
 
   std::vector<double> val_a_loc{};
   std::vector<size_t> col_a_loc{};
